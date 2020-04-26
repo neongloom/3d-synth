@@ -10,6 +10,10 @@ let stats, controls;
 let renderer, scene, camera;
 let clock = new THREE.Clock();
 
+let mouse = new THREE.Vector2(),
+  INTERSECTED;
+let raycaster;
+
 let mixer;
 
 init();
@@ -38,22 +42,22 @@ function init() {
   camera.lookAt(new THREE.Vector3(0, 0, 0));
 
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xffffff);
+  // scene.background = new THREE.Color(0xffffff);
   // scene.fog = new THREE.Fog(0xffffff, 15, 52);
-  scene.fog = new THREE.FogExp2(0xffffff, 0.01);
+  // scene.fog = new THREE.FogExp2(0xffffff, 0.02);
 
-  let light = new THREE.HemisphereLight(0xff3f4f, 0x0080a0, 2.0); // sky color, ground color, intensity
+  let light = new THREE.HemisphereLight(0xafafaf, 0x101010, 1.0); // sky color, ground color, intensity
   light.position.set(0, 8, 0);
-  scene.add(light);
+  // scene.add(light);
 
-  light = new THREE.DirectionalLight(0xc59fb0, 5);
-  light.position.set(-25, 30, 24);
+  light = new THREE.DirectionalLight(0xb59fa0, 6);
+  light.position.set(-15, 20, 14);
   light.target.position.set(0, 0, 0);
   light.castShadow = true;
 
   light.shadow.bias = -0.001;
-  light.shadow.mapSize.width = 4096;
-  light.shadow.mapSize.height = 4096;
+  light.shadow.mapSize.width = 8192;
+  light.shadow.mapSize.height = 8192;
   light.shadow.camera.near = 0.1;
   light.shadow.camera.far = 90;
   light.shadow.radius = 2;
@@ -67,38 +71,33 @@ function init() {
   scene.add(light.target);
 
   let keyMat = new THREE.MeshStandardMaterial({
-    // color: 0x4f0b19,
-    color: 0x1a544a,
+    color: 0x2a544a,
     // emissive: 0x3e6677,
-    // emissiveIntensity: -0.1,
+    // emissiveIntensity: 0.1,
     metalness: 0,
-    roughness: 0.1
+    roughness: 0.9
   });
 
   let blackKeyMat = new THREE.MeshStandardMaterial({
-    color: 0x050101,
-    metalness: 0,
-    roughness: 0.5
+    color: 0x152a44,
+    metalness: 1,
+    roughness: 0.9
   });
 
   // ground
   let ground = new THREE.Mesh(
-    new THREE.PlaneBufferGeometry(100, 30),
+    new THREE.PlaneBufferGeometry(60, 40),
     blackKeyMat
   );
   ground.rotation.x = -Math.PI / 2;
-  scene.add(ground);
+  // scene.add(ground);
   ground.receiveShadow = true;
 
-  let grid = new THREE.GridHelper(2000, 20, 0xf00000, 0x0000f0); // size, divisions, colorCenterLine, colorGrid
-  grid.material.opacity = 0.8;
-  grid.material.transparent = true;
-  scene.add(grid);
-
   let gltfLoader = new GLTFLoader();
+  let model;
 
   gltfLoader.load('minisynth.glb', gltf => {
-    let model = gltf.scene;
+    model = gltf.scene;
     scene.add(model);
 
     model.scale.set(1, 1, 1);
@@ -108,11 +107,12 @@ function init() {
         obj.receiveShadow = true;
       }
       if (obj.isMesh) {
-        if (obj.name[1] == '#') {
+        if (obj.name[5] == '#') {
           obj.material = blackKeyMat;
         } else {
           obj.material = keyMat;
         }
+        // obj.material = keyMat;
       }
     });
 
@@ -147,7 +147,10 @@ function init() {
   controls.target.set(0, 0, 0);
   controls.update();
 
+  raycaster = new THREE.Raycaster();
+
   window.addEventListener('resize', onWindowResize, false);
+  window.addEventListener('mousemove', onDocumentMouseMove, false);
 }
 
 function onWindowResize() {
@@ -161,9 +164,71 @@ function animate() {
 
   let delta = clock.getDelta();
 
-  // if (mixer) mixer.update(delta);
   // controls.update(delta);
   stats.update();
 
+  // renderer.render(scene, camera);
+  render();
+}
+
+// let selectedObject = null;
+
+function onDocumentMouseMove(event) {
+  event.preventDefault();
+
+  mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+}
+
+function onMouseDown(e) {
+  e.preventDefault();
+}
+
+function onMouseUp(e) {
+  e.preventDefault();
+}
+
+function render() {
+  camera.updateMatrixWorld();
+  raycaster.setFromCamera(mouse, camera);
+
+  let intersects = raycaster.intersectObjects(scene.children, true);
+  // let intersects = raycaster.intersectObject('case', true);
+
+  if (intersects.length > 0) {
+    console.log(intersects[0]);
+    if (
+      INTERSECTED != intersects[0].object &&
+      intersects[0].object.name[0] == 'k'
+    ) {
+      if (INTERSECTED) {
+        // INTERSECTED.material.emissive.setHex(INTERSECTED.currentHex);
+        INTERSECTED.rotation.x -= 0.1;
+      }
+
+      INTERSECTED = intersects[0].object;
+      INTERSECTED.currentHex = INTERSECTED.material.emissive.getHex();
+      // INTERSECTED.material.emissive.setHex(0xff0000);
+
+      INTERSECTED.rotation.x += 0.1;
+    }
+  } else {
+    if (INTERSECTED) {
+      // INTERSECTED.material.emissive.setHex(INTERSECTED.currentHex);
+      INTERSECTED.rotation.x -= 0.1;
+    }
+
+    INTERSECTED = null;
+  }
   renderer.render(scene, camera);
 }
+
+// function getIntersects(x, y) {
+//   x = (x / window.innerWidth) * 2 - 1;
+//   y = -(y / window.innerHeight) * 2 + 1;
+
+//   mouseVector.set(x, y, 0.5);
+//   raycaster.setFromCamera(mouseVector, camera);
+
+//   return raycaster.intersectObject(group, true);
+// }
